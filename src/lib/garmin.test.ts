@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { burnedFor, garminBonus } from './garmin';
+import { burnedFor, garminBonus, parseRelay } from './garmin';
 import { computePlan } from './plan';
 import type { Profile } from './types';
 
@@ -27,5 +27,22 @@ describe('Garmin calories', () => {
   it('never lowers the budget on a quiet day or early in the morning', () => {
     expect(garminBonus(900, 2136)).toBe(0);
     expect(garminBonus(null, 2136)).toBe(0);
+  });
+});
+
+describe('relay response check', () => {
+  it('keeps well-formed days and activities', () => {
+    const r = parseRelay({ days: [{ date: '2026-11-17', steps: 3142, stepGoal: 8000, restingKcal: 1254, activeKcal: 40, totalKcal: 1294 }], activities: [{ id: '1', date: '2026-11-14', name: 'Ride', type: 'cycling', start: '2026-11-14T07:05:00', minutes: 27, kcal: 110 }] });
+    expect(r.days).toHaveLength(1);
+    expect(r.activities[0].kcal).toBe(110);
+  });
+  it('drops malformed rows instead of storing them', () => {
+    const r = parseRelay({ days: [{ date: 'bad' }, { date: '2026-11-17', totalKcal: 'lots' }], activities: [{ id: 2 }, null] });
+    expect(r.days).toEqual([{ date: '2026-11-17', steps: null, stepGoal: null, restingKcal: null, activeKcal: null, totalKcal: null }]);
+    expect(r.activities).toEqual([]);
+  });
+  it('rejects a response that is not the relay format', () => {
+    expect(() => parseRelay('<html>')).toThrow();
+    expect(() => parseRelay({ days: 'x' })).toThrow();
   });
 });

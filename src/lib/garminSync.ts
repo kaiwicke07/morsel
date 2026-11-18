@@ -1,5 +1,5 @@
 import { db } from './db';
-import type { GarminActivity, GarminDay } from './garmin';
+import { parseRelay, type GarminActivity, type GarminDay } from './garmin';
 import { addDays, todayIso } from './units';
 
 export const DEFAULT_RELAY = 'https://morsel-garmin.vercel.app';
@@ -34,8 +34,13 @@ export async function syncGarmin(force = false): Promise<void> {
       await setStatus({ lastError: msg });
       throw new GarminError(msg);
     }
-    const days = body.days as GarminDay[];
-    const acts = body.activities as GarminActivity[];
+    let days: GarminDay[], acts: GarminActivity[];
+    try {
+      ({ days, activities: acts } = parseRelay(body));
+    } catch (e) {
+      await setStatus({ lastError: 'The Garmin relay sent something unexpected.' });
+      throw new GarminError(e instanceof Error ? e.message : 'Bad relay answer');
+    }
     await db.transaction('rw', db.garminDays, db.garminActivities, async () => {
       await db.garminDays.bulkPut(days);
       // replace the window's activities so deleted workouts disappear

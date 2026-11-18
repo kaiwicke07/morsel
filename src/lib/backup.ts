@@ -1,10 +1,11 @@
 import { db, type Settings } from './db';
+import { DEFAULT_RELAY } from './garminSync';
 import { base64ToBlob, blobToBase64 } from './image';
 import { detachPhotos, validateBackup } from './maintenance';
 
 /** API keys never leave the device in a backup file. */
 export function stripSecrets(s: Settings): Settings {
-  return { ...s, usdaKey: '', ai: { ...s.ai, claudeKey: '', geminiKey: '' } };
+  return { ...s, usdaKey: '', ai: { ...s.ai, claudeKey: '', geminiKey: '' }, garmin: s.garmin ? { ...s.garmin, code: '' } : undefined };
 }
 
 /** On import, keep whatever keys this device already has; never take keys from a file. */
@@ -13,6 +14,10 @@ export function keepLocalSecrets(imported: Settings, local: Settings | undefined
     ...imported,
     usdaKey: local?.usdaKey ?? '',
     ai: { ...imported.ai, claudeKey: local?.ai.claudeKey ?? '', geminiKey: local?.ai.geminiKey ?? '' },
+    // the sync code and the address it is sent to only ever come from this device
+    garmin: imported.garmin
+      ? { ...imported.garmin, code: local?.garmin?.code ?? '', relayUrl: local?.garmin?.relayUrl ?? DEFAULT_RELAY }
+      : local?.garmin,
   };
 }
 
