@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
-import { recoverStale, useSettings } from './data';
+import { useEffect, useState } from 'react';
+import { purgeOrphanPhotos, recoverStale, snapshotToday, useSettings } from './data';
 import { requestPersistence } from './lib/db';
 import { NavProvider, useNav, type Overlay } from './nav';
 import { AddSheet } from './screens/AddSheet';
 import { AiSettings } from './screens/AiSettings';
+import { BackupSheet } from './screens/BackupSheet';
 import { Badges } from './screens/Badges';
 import { Camera } from './screens/Camera';
 import { Describe } from './screens/Describe';
@@ -34,6 +35,17 @@ function useTheme(theme: 'system' | 'light' | 'dark' | undefined) {
   }, [theme]);
 }
 
+/** The service worker waits instead of reloading mid-use; this exposes "update now". */
+function useUpdateReady(): (() => void) | null {
+  const [fn, setFn] = useState<(() => void) | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setFn(() => (e as CustomEvent<() => void>).detail);
+    window.addEventListener('morsel:update', on);
+    return () => window.removeEventListener('morsel:update', on);
+  }, []);
+  return fn;
+}
+
 function OverlayView({ o }: { o: Overlay }) {
   switch (o.kind) {
     case 'add': return <AddSheet />;
@@ -49,6 +61,7 @@ function OverlayView({ o }: { o: Overlay }) {
     case 'ai': return <AiSettings />;
     case 'badges': return <Badges />;
     case 'photos': return <ProgressPhotos />;
+    case 'backup': return <BackupSheet photos={o.photos} />;
   }
 }
 
@@ -60,7 +73,15 @@ function Shell() {
   useEffect(() => {
     void recoverStale();
     void requestPersistence();
+    void purgeOrphanPhotos();
   }, []);
+
+  // keep today's goal snapshot current with the settings
+  useEffect(() => {
+    if (settings) void snapshotToday();
+  }, [settings, nav.date]);
+
+  const update = useUpdateReady();
 
   if (settings === null) return null; // loading
   if (!settings || !settings.onboarded) return <Onboarding existing={settings} />;
@@ -101,6 +122,13 @@ function Shell() {
       {nav.stack.map((o, i) => (
         <OverlayView key={i + o.kind} o={o} />
       ))}
+
+      {update && (
+        <div className="toast" role="status" style={{ bottom: 'auto', top: 'calc(var(--safe-top) + 8px)' }}>
+          A new version of Morsel is ready.
+          <button onClick={update}>Update</button>
+        </div>
+      )}
 
       {nav.toast && (
         <div className="toast" role="status" key={nav.toast.id}>

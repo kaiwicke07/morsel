@@ -19,6 +19,7 @@ export interface Settings {
   seenCameraTips: boolean;
   celebrateBadges: boolean;
   createdAt: number;
+  lastBackupAt?: number;
 }
 
 export interface WaterEntry { id?: number; date: string; createdAt: number; ml: number }
@@ -36,6 +37,8 @@ export interface SavedFood {
   uses: number;
 }
 export interface ProgressPhoto { id?: number; date: string; photoId: number; createdAt: number }
+/** The goal a day was logged against, so later weight or goal changes don't rewrite history. */
+export interface DayGoal { date: string; targets: Targets }
 
 class MorselDB extends Dexie {
   settings!: Table<Settings, 'me'>;
@@ -46,6 +49,7 @@ class MorselDB extends Dexie {
   photos!: Table<PhotoRow, number>;
   saved!: Table<SavedFood, number>;
   progressPhotos!: Table<ProgressPhoto, number>;
+  dayGoals!: Table<DayGoal, string>;
 
   constructor() {
     super('morsel');
@@ -59,6 +63,7 @@ class MorselDB extends Dexie {
       saved: '++id, name, uses',
       progressPhotos: '++id, date',
     });
+    this.version(2).stores({ dayGoals: 'date' });
   }
 }
 

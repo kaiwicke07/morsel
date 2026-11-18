@@ -4,7 +4,12 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './styles.css';
 
-registerSW({ immediate: true });
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    window.dispatchEvent(new CustomEvent('morsel:update', { detail: () => void updateSW(true) }));
+  },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

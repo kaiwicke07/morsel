@@ -7,7 +7,8 @@ import { prepareImage } from './lib/image';
 import type { LookupFood } from './lib/lookup/off';
 import { computePlan } from './lib/plan';
 import type { ExerciseEntry, FoodEntry, Nutrients, Targets } from './lib/types';
-import { addDays } from './lib/units';
+import { goalFor, orphanPhotoIds } from './lib/maintenance';
+import { addDays, todayIso } from './lib/units';
 
 /* ------------------------------------------------------------------ hooks */
 
@@ -15,6 +16,21 @@ export const useSettings = () => useLiveQuery(() => db.settings.get('me'), [], n
 
 export function baseTargets(s: Settings): Targets {
   return s.customTargets ?? computePlan(s.profile);
+}
+
+/** Freeze today's goal so it survives later changes to weight or goals. */
+export async function snapshotToday() {
+  const s = await db.settings.get('me');
+  if (s?.onboarded) await db.dayGoals.put({ date: todayIso(), targets: baseTargets(s) });
+}
+
+async function goalOn(date: string, s: Settings): Promise<Targets> {
+  const snap = await db.dayGoals.get(date);
+  return goalFor(date, todayIso(), snap ? { [date]: snap.targets } : {}, baseTargets(s));
+}
+
+export function useGoalSnapshots(): Record<string, Targets> {
+  return useLiveQuery(async () => Object.fromEntries((await db.dayGoals.toArray()).map(g => [g.date, g.targets])), [], {} as Record<string, Targets>);
 }
 
 export interface DayData {
@@ -39,14 +55,14 @@ export function useDay(date: string, s: Settings | null | undefined): DayData | 
     ]);
     entries.sort((a, b) => b.createdAt - a.createdAt);
     exercises.sort((a, b) => b.createdAt - a.createdAt);
-    const base = baseTargets(s);
+    const base = await goalOn(date, s);
     const burned = exercises.reduce((n, e) => n + e.kcal, 0);
     let rollover = 0;
     if (s.profile.rollover) {
       const y = addDays(date, -1);
       const [yEntries, yEx] = await Promise.all([db.entries.where('date').equals(y).toArray(), db.exercises.where('date').equals(y).toArray()]);
       const yBurn = yEx.reduce((n, e) => n + e.kcal, 0);
-      const yTarget = dayTargets(base, { burned: yBurn, addBurned: s.profile.addBurned, rollover: 0 }).kcal;
+      const yTarget = dayTargets(await goalOn(y, s), { burned: yBurn, addBurned: s.profile.addBurned, rollover: 0 }).kcal;
       const ready = yEntries.filter(e => e.status === 'ready');
       rollover = rolloverFrom(sumEntries(ready).kcal, yTarget, ready.length > 0);
     }
@@ -120,6 +136,7 @@ export async function runAnalysis(id: number) {
 }
 
 export async function logPhoto(date: string, file: Blob, kind: 'photo' | 'label', hint?: string): Promise<number> {
+  if (date === todayIso()) void snapshotToday();
   const { full, thumb } = await prepareImage(file);
   const photoId = await db.photos.add({ full, thumb, createdAt: Date.now() });
   const id = await db.entries.add({
@@ -140,6 +157,7 @@ export async function logPhoto(date: string, file: Blob, kind: 'photo' | 'label'
 }
 
 export async function logText(date: string, text: string): Promise<number> {
+  if (date === todayIso()) void snapshotToday();
   const id = await db.entries.add({
     date,
     createdAt: Date.now(),
@@ -176,6 +194,7 @@ export async function applyFix(id: number, note: string) {
 }
 
 export async function logLookup(date: string, f: LookupFood, servings: number, source: 'barcode' | 'search' | 'manual'): Promise<number> {
+  if (date === todayIso()) void snapshotToday();
   return db.entries.add({
     date,
     createdAt: Date.now(),
@@ -191,6 +210,7 @@ export async function logLookup(date: string, f: LookupFood, servings: number, s
 }
 
 export async function logSaved(date: string, s: SavedFood): Promise<number> {
+  if (date === todayIso()) void snapshotToday();
   if (s.id) await db.saved.update(s.id, { uses: (s.uses || 0) + 1 });
   return db.entries.add({
     date,
@@ -228,7 +248,21 @@ export async function toggleSaved(e: FoodEntry): Promise<boolean> {
 export async function deleteEntry(id: number): Promise<FoodEntry | undefined> {
   const e = await db.entries.get(id);
   await db.entries.delete(id);
+  // give Undo time to put the entry back before its photo is cleaned up
+  if (e?.photoId) setTimeout(() => void purgeOrphanPhotos(), 8000);
   return e;
+}
+
+/** Delete stored photos that no entry, saved food or progress photo points at. */
+export async function purgeOrphanPhotos() {
+  const [ids, entries, saved, progress] = await Promise.all([
+    db.photos.toCollection().primaryKeys(),
+    db.entries.toArray(),
+    db.saved.toArray(),
+    db.progressPhotos.toArray(),
+  ]);
+  const gone = orphanPhotoIds(ids as number[], entries, saved, progress);
+  if (gone.length) await db.photos.bulkDelete(gone);
 }
 
 export async function restoreEntry(e: FoodEntry) {

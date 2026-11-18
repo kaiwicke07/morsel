@@ -17,7 +17,8 @@ export type Overlay =
   | { kind: 'details' }
   | { kind: 'ai' }
   | { kind: 'badges' }
-  | { kind: 'photos' };
+  | { kind: 'photos' }
+  | { kind: 'backup'; photos: boolean };
 
 interface Toast {
   id: number;

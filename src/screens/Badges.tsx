@@ -4,14 +4,18 @@ import { BADGES, earnedBadges, type BadgeStats } from '../lib/badges';
 import { db } from '../lib/db';
 import { entryTotals } from '../lib/day';
 import { bestStreak } from '../lib/streak';
+import { goalFor } from '../lib/maintenance';
+import { todayIso } from '../lib/units';
 import { useNav } from '../nav';
 import { Screen } from '../ui/primitives';
 
 export function useBadgeStats(): BadgeStats | undefined {
   return useLiveQuery(async () => {
-    const [entries, water, weights, s] = await Promise.all([db.entries.toArray(), db.water.toArray(), db.weights.orderBy('createdAt').toArray(), db.settings.get('me')]);
+    const [entries, water, weights, s, goals] = await Promise.all([db.entries.toArray(), db.water.toArray(), db.weights.orderBy('createdAt').toArray(), db.settings.get('me'), db.dayGoals.toArray()]);
     if (!s) return undefined;
     const t = baseTargets(s);
+    const snaps = Object.fromEntries(goals.map(g => [g.date, g.targets]));
+    const today = todayIso();
     const perDay = new Map<string, { n: number; kcal: number }>();
     for (const e of entries) {
       if (e.status !== 'ready') continue;
@@ -28,7 +32,7 @@ export function useBadgeStats(): BadgeStats | undefined {
       bestStreak: bestStreak(new Set(perDay.keys())),
       totalMeals: entries.filter(e => e.status === 'ready').length,
       maxMealsInDay: Math.max(0, ...[...perDay.values()].map(d => d.n)),
-      daysOnTarget: [...perDay.values()].filter(d => Math.abs(d.kcal - t.kcal) <= t.kcal * 0.1).length,
+      daysOnTarget: [...perDay.entries()].filter(([date, d]) => { const g = goalFor(date, today, snaps, t).kcal; return Math.abs(d.kcal - g) <= g * 0.1; }).length,
       waterDays: [...waterDay.values()].filter(ml => ml >= t.water).length,
       kgLost: Math.max(0, first - lowest),
       weighIns: weights.length,

@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState } from 'react';
-import { baseTargets, logWater, runAnalysis, useDay, useLoggedDays, usePhoto, useSettings, type DayData } from '../data';
+import { baseTargets, logWater, runAnalysis, useDay, useGoalSnapshots, useLoggedDays, usePhoto, useSettings, type DayData } from '../data';
+import { backupDue, goalFor } from '../lib/maintenance';
 import { db, type Settings } from '../lib/db';
 import { entryTotals } from '../lib/day';
 import { currentStreak } from '../lib/streak';
@@ -50,6 +51,17 @@ export function Home() {
         </button>
       )}
 
+      {backupDue(s.lastBackupAt, s.createdAt, Date.now()) && (
+        <button className="card row" style={{ width: '100%', marginTop: 12, textAlign: 'left' }} onClick={() => nav.push({ kind: 'backup', photos: false })}>
+          <Icon name="download" />
+          <span style={{ flex: 1 }}>
+            <b>Back up this week</b>
+            <span className="small muted" style={{ display: 'block' }}>Everything lives only on this phone. One tap saves a copy to Files.</span>
+          </span>
+          <Icon name="next" />
+        </button>
+      )}
+
       <h2 className="section-title">{nav.date === todayIso() ? 'Today' : parseIso(nav.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h2>
       {day && <DayList day={day} />}
     </div>
@@ -75,7 +87,8 @@ function WeekStrip({ s }: { s: Settings }) {
   const sel = parseIso(nav.date);
   const monday = addDays(nav.date, -((sel.getDay() + 6) % 7));
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-  const base = baseTargets(s).kcal;
+  const current = baseTargets(s);
+  const snaps = useGoalSnapshots();
   const totals = useLiveQuery(async () => {
     const rows = await db.entries.where('date').between(days[0], days[6], true, true).toArray();
     const m: Record<string, number> = {};
@@ -92,7 +105,7 @@ function WeekStrip({ s }: { s: Settings }) {
         {days.map(d => {
           const future = d > today;
           const selected = d === nav.date;
-          const k = Math.min(1, (totals?.[d] || 0) / base);
+          const k = Math.min(1, (totals?.[d] || 0) / goalFor(d, today, snaps, current).kcal);
           const dt = parseIso(d);
           return (
             <button
