@@ -79,7 +79,7 @@ export const DEFAULT_AI: Settings['ai'] = {
   claudeKey: '',
   claudeModel: 'claude-opus-5-5',
   geminiKey: '',
-  geminiModel: 'gemini-flash-latest',
+  geminiModel: 'gemini-2.5-flash',
 };
 
 export const getSettings = () => db.settings.get('me');

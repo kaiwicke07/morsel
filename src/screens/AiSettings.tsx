@@ -57,7 +57,7 @@ function Inner({ s, onClose }: { s: Settings; onClose: () => void }) {
                 autoCorrect="off"
                 spellCheck={false}
                 autoComplete="off"
-                placeholder={ai.provider === 'claude' ? 'sk-ant-…' : 'AIza…'}
+                placeholder={ai.provider === 'claude' ? 'sk-ant-…' : 'Paste your Gemini key'}
                 value={key}
                 onChange={e => { const v = cleanKey(e.target.value); setAi(ai.provider === 'claude' ? { ...ai, claudeKey: v } : { ...ai, geminiKey: v }); }}
                 style={{ paddingRight: 64 }}
@@ -91,6 +91,7 @@ function Inner({ s, onClose }: { s: Settings; onClose: () => void }) {
             <div className="field">
               <label htmlFor="gm">Gemini model</label>
               <input id="gm" className="input" autoCapitalize="none" autoCorrect="off" value={ai.geminiModel} onChange={e => setAi({ ...ai, geminiModel: e.target.value.trim() })} />
+              <span className="small muted">If this one is busy or retired, Morsel automatically tries other current Gemini models.</span>
             </div>
           )}
 
