@@ -18,7 +18,8 @@ export type Overlay =
   | { kind: 'ai' }
   | { kind: 'badges' }
   | { kind: 'photos' }
-  | { kind: 'backup'; photos: boolean };
+  | { kind: 'backup'; photos: boolean }
+  | { kind: 'garmin' };
 
 interface Toast {
   id: number;

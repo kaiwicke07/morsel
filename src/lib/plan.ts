@@ -13,8 +13,11 @@ export function bmr(p: Profile, today = new Date()): number {
 
 export const tdee = (p: Profile, today = new Date()) => bmr(p, today) * ACTIVITY_FACTOR[p.activity];
 
-export function computePlan(p: Profile, today = new Date()): Targets {
-  let kcal = tdee(p, today);
+export const SEDENTARY_FACTOR = 1.2;
+
+/** With Garmin, start from a no-exercise baseline; Garmin's measured burn is added per day instead. */
+export function computePlan(p: Profile, today = new Date(), opts: { garmin?: boolean } = {}): Targets {
+  let kcal = opts.garmin ? bmr(p, today) * SEDENTARY_FACTOR : tdee(p, today);
   if (p.goal === 'lose') kcal -= p.paceLbPerWeek * 500;
   if (p.goal === 'gain') kcal += p.paceLbPerWeek * 500;
   const floor = p.sex === 'female' ? 1200 : p.sex === 'male' ? 1500 : 1350;

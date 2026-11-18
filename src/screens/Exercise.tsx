@@ -39,6 +39,11 @@ export function Exercise() {
           {!kind && (
             <>
               <h1 className="serif" style={{ fontSize: 28, fontWeight: 600, margin: '8px 0 6px' }}>What did you do?</h1>
+              {s?.garmin?.enabled && (
+                <div className="card small" style={{ background: 'var(--accent-soft)', boxShadow: 'none' }}>
+                  Garmin already counts everything your watch tracked. Only log workouts you did without it, or they'll be counted twice.
+                </div>
+              )}
               {([
                 ['run', 'run', 'Run or walk', 'Treadmill, outdoors, hiking'],
                 ['lift', 'lift', 'Weights', 'Machines, free weights, bodyweight'],

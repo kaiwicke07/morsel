@@ -5,6 +5,8 @@ import { NavProvider, useNav, type Overlay } from './nav';
 import { AddSheet } from './screens/AddSheet';
 import { AiSettings } from './screens/AiSettings';
 import { BackupSheet } from './screens/BackupSheet';
+import { GarminSettings } from './screens/GarminSettings';
+import { syncGarmin } from './lib/garminSync';
 import { Badges } from './screens/Badges';
 import { Camera } from './screens/Camera';
 import { Describe } from './screens/Describe';
@@ -62,6 +64,7 @@ function OverlayView({ o }: { o: Overlay }) {
     case 'badges': return <Badges />;
     case 'photos': return <ProgressPhotos />;
     case 'backup': return <BackupSheet photos={o.photos} />;
+    case 'garmin': return <GarminSettings />;
   }
 }
 
@@ -74,6 +77,10 @@ function Shell() {
     void recoverStale();
     void requestPersistence();
     void purgeOrphanPhotos();
+    const sync = () => document.visibilityState === 'visible' && void syncGarmin().catch(() => {});
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
   }, []);
 
   // keep today's goal snapshot current with the settings

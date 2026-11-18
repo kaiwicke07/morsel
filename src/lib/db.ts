@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { GarminActivity, GarminDay } from './garmin';
 import type { ExerciseEntry, FoodEntry, Nutrients, Profile, Targets } from './types';
 
 export interface Settings {
@@ -20,6 +21,7 @@ export interface Settings {
   celebrateBadges: boolean;
   createdAt: number;
   lastBackupAt?: number;
+  garmin?: { enabled: boolean; code: string; relayUrl: string; since: string; lastSync?: number; lastError?: string };
 }
 
 export interface WaterEntry { id?: number; date: string; createdAt: number; ml: number }
@@ -50,6 +52,8 @@ class MorselDB extends Dexie {
   saved!: Table<SavedFood, number>;
   progressPhotos!: Table<ProgressPhoto, number>;
   dayGoals!: Table<DayGoal, string>;
+  garminDays!: Table<GarminDay, string>;
+  garminActivities!: Table<GarminActivity, string>;
 
   constructor() {
     super('morsel');
@@ -64,6 +68,7 @@ class MorselDB extends Dexie {
       progressPhotos: '++id, date',
     });
     this.version(2).stores({ dayGoals: 'date' });
+    this.version(3).stores({ garminDays: 'date', garminActivities: 'id, date' });
   }
 }
 

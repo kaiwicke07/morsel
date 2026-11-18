@@ -5,6 +5,7 @@ import { backupDue, goalFor } from '../lib/maintenance';
 import { db, type Settings } from '../lib/db';
 import { entryTotals } from '../lib/day';
 import { currentStreak } from '../lib/streak';
+import type { GarminActivity } from '../lib/garmin';
 import type { ExerciseEntry, FoodEntry } from '../lib/types';
 import { addDays, parseIso, todayIso } from '../lib/units';
 import { useNav } from '../nav';
@@ -205,7 +206,7 @@ function CaloriesCard({ day, s }: { day: DayData; s: Settings }) {
       </div>
       {(day.burned > 0 || day.rollover > 0) && (
         <div className="row small muted" style={{ gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
-          {day.burned > 0 && <span>{s.profile.addBurned ? '+' : ''}{fmt(day.burned)} burned{s.profile.addBurned ? '' : ' (not added)'}</span>}
+          {day.burned > 0 && <span>{s.profile.addBurned ? '+' : ''}{fmt(day.burned)} {s.garmin?.enabled ? 'from activity' : 'burned'}{s.profile.addBurned ? '' : ' (not added)'}</span>}
           {day.rollover > 0 && <span>+{fmt(day.rollover)} rolled over</span>}
         </div>
       )}
@@ -322,10 +323,12 @@ function WaterCard({ day, s }: { day: DayData; s: Settings }) {
         </button>
       </div>
 
+      {s.garmin?.enabled && <GarminStrip day={day} />}
+
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
         <div className="row between">
           <span className="row" style={{ gap: 8, fontWeight: 600 }}>
-            <Icon name="run" size={18} /> Burned
+            <Icon name="run" size={18} /> {s.garmin?.enabled ? 'Added to budget' : 'Burned'}
           </span>
           <span className="num" style={{ fontSize: 22, fontWeight: 600 }}>{fmt(day.burned)} <span className="small muted" style={{ fontFamily: 'var(--sans)' }}>cal</span></span>
         </div>
@@ -337,10 +340,40 @@ function WaterCard({ day, s }: { day: DayData; s: Settings }) {
   );
 }
 
+function GarminStrip({ day }: { day: DayData }) {
+  const g = day.garmin;
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+      <div className="row between">
+        <span className="row" style={{ gap: 8, fontWeight: 600 }}>
+          <Icon name="today" size={18} /> Steps
+        </span>
+        <span className="num small muted">
+          {g?.steps != null ? `${fmt(g.steps)}${g.stepGoal ? ` / ${fmt(g.stepGoal)}` : ''}` : '–'}
+        </span>
+      </div>
+      <div style={{ margin: '8px 0 6px' }}>
+        <Meter value={g?.steps ?? 0} max={g?.stepGoal || 10000} color="var(--good)" />
+      </div>
+      <div className="small muted">
+        {g?.totalKcal != null ? (
+          <>Garmin: <b className="num" style={{ color: 'var(--ink)' }}>{fmt(g.totalKcal)}</b> burned{g.activeKcal != null ? ` · ${fmt(g.activeKcal)} active` : ''}</>
+        ) : (
+          'Waiting for your watch to sync. Open Garmin Connect.'
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DayList({ day }: { day: DayData }) {
   const nav = useNav();
-  type Item = { t: number; food?: FoodEntry; ex?: ExerciseEntry };
-  const items: Item[] = [...day.entries.map(f => ({ t: f.createdAt, food: f })), ...day.exercises.map(e => ({ t: e.createdAt, ex: e }))].sort((a, b) => b.t - a.t);
+  type Item = { t: number; food?: FoodEntry; ex?: ExerciseEntry; g?: GarminActivity };
+  const items: Item[] = [
+    ...day.entries.map(f => ({ t: f.createdAt, food: f })),
+    ...day.exercises.map(e => ({ t: e.createdAt, ex: e })),
+    ...day.garminActivities.map(g => ({ t: new Date(g.start).getTime(), g })),
+  ].sort((a, b) => b.t - a.t);
   if (!items.length)
     return (
       <div className="card" style={{ textAlign: 'center', padding: '30px 20px', boxShadow: 'none', background: 'transparent', border: '1.5px dashed var(--line)' }}>
@@ -353,7 +386,7 @@ function DayList({ day }: { day: DayData }) {
     );
   return (
     <div className="stack" style={{ gap: 10 }}>
-      {items.map(it => (it.food ? <FoodRow key={'f' + it.food.id} e={it.food} /> : <ExerciseRow key={'e' + it.ex!.id} e={it.ex!} />))}
+      {items.map(it => (it.food ? <FoodRow key={'f' + it.food.id} e={it.food} /> : it.g ? <GarminRow key={'g' + it.g.id} a={it.g} /> : <ExerciseRow key={'e' + it.ex!.id} e={it.ex!} />))}
     </div>
   );
 }
@@ -425,6 +458,27 @@ function Macro({ c, v, l }: { c: string; v: number; l: string }) {
       <span className="num">{Math.round(v)}g</span>
       <span className="faint">{l}</span>
     </span>
+  );
+}
+
+function GarminRow({ a }: { a: GarminActivity }) {
+  const icon = /strength|weight/.test(a.type) ? 'lift' : /run|walk|hik|cycl|bik/.test(a.type) ? 'run' : 'spark';
+  return (
+    <div className="card row rise" style={{ padding: 10, gap: 12 }}>
+      <div style={{ width: 70, height: 56, borderRadius: 14, background: 'var(--card-2)', display: 'grid', placeItems: 'center' }}>
+        <Icon name={icon} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="row between">
+          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+          <span className="small faint">{time(new Date(a.start).getTime())}</span>
+        </div>
+        <span className="small muted">
+          <span className="num" style={{ color: 'var(--good)', fontWeight: 600 }}>{fmt(a.kcal)} cal</span> · {a.minutes} min ·{' '}
+          <span className="tiny" style={{ letterSpacing: '.06em' }}>Garmin</span>
+        </span>
+      </div>
+    </div>
   );
 }
 

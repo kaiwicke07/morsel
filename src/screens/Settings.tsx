@@ -73,8 +73,9 @@ export function Settings() {
         </div>
       </Group>
 
-      <Group title="Scanning">
+      <Group title="Scanning & devices">
         <Row first icon="key" label="AI provider & key" value={keyOn ? (s.ai.provider === 'claude' ? 'Claude' : 'Gemini') : 'Not set'} onClick={go({ kind: 'ai' })} />
+        <Row icon="run" label="Garmin" value={s.garmin?.enabled ? (s.garmin.lastError ? 'Needs attention' : 'Connected') : 'Off'} onClick={go({ kind: 'garmin' })} />
         <Row icon="camera" label="Show camera tips again" onClick={() => { void patchSettings({ seenCameraTips: false }); nav.showToast('Tips will show next time you scan'); }} />
       </Group>
 

@@ -5,7 +5,8 @@ import { db, type SavedFood, type Settings } from './lib/db';
 import { dayHealthScore, dayTargets, loggedDaysFrom, rolloverFrom, sumEntries } from './lib/day';
 import { prepareImage } from './lib/image';
 import type { LookupFood } from './lib/lookup/off';
-import { computePlan } from './lib/plan';
+import { bmr, computePlan, SEDENTARY_FACTOR } from './lib/plan';
+import { burnedFor, type GarminActivity, type GarminDay } from './lib/garmin';
 import type { ExerciseEntry, FoodEntry, Nutrients, Targets } from './lib/types';
 import { goalFor, orphanPhotoIds } from './lib/maintenance';
 import { addDays, todayIso } from './lib/units';
@@ -14,9 +15,16 @@ import { addDays, todayIso } from './lib/units';
 
 export const useSettings = () => useLiveQuery(() => db.settings.get('me'), [], null as Settings | null | undefined);
 
+export const garminOn = (s: Settings) => !!(s.garmin?.enabled && s.garmin.code);
+/** Days before Garmin was connected kept a goal that already assumed exercise; don't add Garmin on top of those. */
+const garminCounts = (s: Settings, date: string) => garminOn(s) && date >= (s.garmin?.since ?? '9999');
+
 export function baseTargets(s: Settings): Targets {
-  return s.customTargets ?? computePlan(s.profile);
+  return s.customTargets ?? computePlan(s.profile, new Date(), { garmin: garminOn(s) });
 }
+
+/** The no-exercise burn Garmin's measured total is compared against. */
+export const sedentaryTdee = (s: Settings) => bmr(s.profile) * SEDENTARY_FACTOR;
 
 /** Freeze today's goal so it survives later changes to weight or goals. */
 export async function snapshotToday() {
@@ -43,25 +51,31 @@ export interface DayData {
   targets: Targets;
   base: Targets;
   healthScore: number;
+  garmin?: GarminDay;
+  garminActivities: GarminActivity[];
+  manualBurned: number;
 }
 
 export function useDay(date: string, s: Settings | null | undefined): DayData | undefined {
   return useLiveQuery(async () => {
     if (!s) return undefined;
-    const [entries, exercises, water] = await Promise.all([
+    const [entries, exercises, water, gDay, gActs] = await Promise.all([
       db.entries.where('date').equals(date).toArray(),
       db.exercises.where('date').equals(date).toArray(),
       db.water.where('date').equals(date).toArray(),
+      db.garminDays.get(date),
+      db.garminActivities.where('date').equals(date).toArray(),
     ]);
     entries.sort((a, b) => b.createdAt - a.createdAt);
     exercises.sort((a, b) => b.createdAt - a.createdAt);
     const base = await goalOn(date, s);
-    const burned = exercises.reduce((n, e) => n + e.kcal, 0);
+    const manualBurned = exercises.reduce((n, e) => n + e.kcal, 0);
+    const burned = burnedFor(manualBurned, gDay, sedentaryTdee(s), garminCounts(s, date));
     let rollover = 0;
     if (s.profile.rollover) {
       const y = addDays(date, -1);
-      const [yEntries, yEx] = await Promise.all([db.entries.where('date').equals(y).toArray(), db.exercises.where('date').equals(y).toArray()]);
-      const yBurn = yEx.reduce((n, e) => n + e.kcal, 0);
+      const [yEntries, yEx, yG] = await Promise.all([db.entries.where('date').equals(y).toArray(), db.exercises.where('date').equals(y).toArray(), db.garminDays.get(y)]);
+      const yBurn = burnedFor(yEx.reduce((n, e) => n + e.kcal, 0), yG, sedentaryTdee(s), garminCounts(s, y));
       const yTarget = dayTargets(await goalOn(y, s), { burned: yBurn, addBurned: s.profile.addBurned, rollover: 0 }).kcal;
       const ready = yEntries.filter(e => e.status === 'ready');
       rollover = rolloverFrom(sumEntries(ready).kcal, yTarget, ready.length > 0);
@@ -76,6 +90,9 @@ export function useDay(date: string, s: Settings | null | undefined): DayData | 
       base,
       targets: dayTargets(base, { burned, addBurned: s.profile.addBurned, rollover }),
       healthScore: dayHealthScore(entries),
+      garmin: gDay,
+      garminActivities: gActs.sort((a, b) => (a.start < b.start ? 1 : -1)),
+      manualBurned,
     };
   }, [date, s]);
 }
