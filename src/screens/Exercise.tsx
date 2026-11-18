@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useCurrentWeight, useSettings } from '../data';
 import { describeExercise } from '../lib/ai';
 import { db } from '../lib/db';
@@ -21,9 +21,12 @@ export function Exercise() {
   const [manualKcal, setManualKcal] = useState('');
   const [result, setResult] = useState<{ label: string; minutes?: number; kcal: number } | null>(null);
   const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
   const [err, setErr] = useState<string | null>(null);
 
   const save = async (close: () => void, r: { label: string; minutes?: number; kcal: number }) => {
+    if (saving.current) return;
+    saving.current = true;
     await db.exercises.add({ date: nav.date, createdAt: Date.now(), kind: kind!, label: r.label, minutes: r.minutes, intensity: kind === 'run' || kind === 'lift' ? intensity : undefined, kcal: Math.round(r.kcal) });
     close();
     nav.showToast(`Logged ${Math.round(r.kcal)} cal burned`);

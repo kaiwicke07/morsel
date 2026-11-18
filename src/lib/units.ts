@@ -29,6 +29,9 @@ export function addDays(iso: string, n: number): string {
 
 export const todayIso = () => isoDate(new Date());
 
+/** After midnight, follow the calendar if the user was looking at "today"; leave other days alone. */
+export const rollDate = (selected: string, lastToday: string, nowToday: string) => (selected === lastToday ? nowToday : selected);
+
 export function ageOn(birthday: string, on: Date): number {
   const b = parseIso(birthday);
   let age = on.getFullYear() - b.getFullYear();

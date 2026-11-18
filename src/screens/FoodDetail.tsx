@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { applyFix, deleteEntry, logLookup, restoreEntry, runAnalysis, toggleSaved, usePhoto } from '../data';
 import { db } from '../lib/db';
-import { NUTRIENT_KEYS, entryTotals, scaleNutrients } from '../lib/day';
+import { NUTRIENT_KEYS, entryTotals, manualNutritionPatch, scaleNutrients } from '../lib/day';
 import type { LookupFood } from '../lib/lookup/off';
 import type { FoodEntry, Ingredient, Nutrients } from '../lib/types';
 import { useNav } from '../nav';
@@ -127,7 +127,11 @@ export function FoodDetail({ id }: { id: number }) {
           {e.status === 'error' && !busy && (
             <div className="card row" style={{ marginTop: 12, background: 'var(--accent-soft)', boxShadow: 'none' }}>
               <span style={{ flex: 1 }} className="small">{e.error}</span>
-              {e.per.kcal === 0 && <button className="btn sm" onClick={() => runAnalysis(id)}>Retry</button>}
+              {/AI key/.test(e.error || '') ? (
+                <button className="btn sm" onClick={() => nav.push({ kind: 'ai' })}>Add key</button>
+              ) : (
+                e.per.kcal === 0 && <button className="btn sm" onClick={() => runAnalysis(id)}>Retry</button>
+              )}
             </div>
           )}
           {e.status === 'ready' && e.error && (
@@ -240,7 +244,7 @@ function FixSheet({ entry, onClose }: { entry: FoodEntry; onClose: () => void })
 }
 
 function EditSheet({ entry, onClose }: { entry: FoodEntry; onClose: () => void }) {
-  const [vals, setVals] = useState<Nutrients>({ ...entry.per });
+  const [vals, setVals] = useState<Record<keyof Nutrients, string>>(() => Object.fromEntries(NUTRIENT_KEYS.map(k => [k, String(entry.per[k])])) as Record<keyof Nutrients, string>);
   const rows: [keyof Nutrients, string, string][] = [
     ['kcal', 'Calories', 'cal'],
     ['protein', 'Protein', 'g'],
@@ -257,10 +261,8 @@ function EditSheet({ entry, onClose }: { entry: FoodEntry; onClose: () => void }
           className="stack"
           onSubmit={async ev => {
             ev.preventDefault();
-            // Scale ingredients so the breakdown keeps adding up to the edited totals.
-            const k = entry.per.kcal ? vals.kcal / entry.per.kcal : 1;
-            const ingredients = entry.ingredients.length === 1 ? [{ ...entry.ingredients[0], ...vals }] : entry.ingredients.map(i => ({ ...i, ...scaleNutrients(i, k) }));
-            await db.entries.update(entry.id!, { per: vals, ingredients });
+            const per = Object.fromEntries(NUTRIENT_KEYS.map(k => [k, Math.max(0, Number(vals[k].replace(',', '.')) || 0)])) as unknown as Nutrients;
+            await db.entries.update(entry.id!, manualNutritionPatch(entry, per));
             close();
           }}
         >
@@ -274,8 +276,8 @@ function EditSheet({ entry, onClose }: { entry: FoodEntry; onClose: () => void }
                   className="input num"
                   inputMode="decimal"
                   style={{ width: 110, textAlign: 'right' }}
-                  value={String(vals[k])}
-                  onChange={ev => setVals(v => ({ ...v, [k]: Math.max(0, Number(ev.target.value.replace(',', '.')) || 0) }))}
+                  value={vals[k]}
+                  onChange={ev => setVals(v => ({ ...v, [k]: ev.target.value.replace(/[^\d.,]/g, '') }))}
                 />
                 <span className="muted small" style={{ width: 24 }}>{unit}</span>
               </div>
@@ -293,6 +295,7 @@ export function LookupDetail({ food, source }: { food: LookupFood; source: 'barc
   const [mode, setMode] = useState<'servings' | 'grams'>('servings');
   const [servings, setServings] = useState(1);
   const [grams, setGrams] = useState(String(food.grams ? Math.round(food.grams) : 100));
+  const [busy, setBusy] = useState(false);
   const k = mode === 'grams' && food.grams ? (Number(grams) || 0) / food.grams : servings;
   const n = scaleNutrients(food.per, k);
 
@@ -327,8 +330,9 @@ export function LookupDetail({ food, source }: { food: LookupFood; source: 'barc
             <div style={{ maxWidth: 560, margin: '0 auto' }}>
               <button
                 className="btn block accent"
-                disabled={!(k > 0)}
+                disabled={!(k > 0) || busy}
                 onClick={async () => {
+                  setBusy(true);
                   await logLookup(nav.date, food, +k.toFixed(3), source);
                   close();
                   nav.showToast(`Logged ${food.name}`);

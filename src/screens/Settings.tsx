@@ -1,11 +1,11 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { baseTargets, useCurrentWeight, useSettings } from '../data';
 import { exportBackup, importBackup } from '../lib/backup';
 import { db, patchSettings, type Settings as S } from '../lib/db';
 import { ageOn, cmToFtIn, fmtWeight, todayIso } from '../lib/units';
 import { useNav, type Overlay } from '../nav';
 import { Icon } from '../ui/Icon';
-import { SegTabs, Toggle } from '../ui/primitives';
+import { SegTabs, Sheet, Toggle } from '../ui/primitives';
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -61,6 +61,17 @@ export function Settings() {
   const nav = useNav();
   const weight = useCurrentWeight(s);
   const fileRef = useRef<HTMLInputElement>(null);
+  // iOS only opens the share sheet straight from a tap, so build the file first, then share on a second tap
+  const [backup, setBackup] = useState<{ blob: Blob; name: string } | 'busy' | null>(null);
+  const prepare = async (photos: boolean) => {
+    setBackup('busy');
+    try {
+      setBackup({ blob: await exportBackup(photos), name: `morsel-backup${photos ? '-photos' : ''}-${todayIso()}.json` });
+    } catch {
+      setBackup(null);
+      nav.showToast("Couldn't build the backup");
+    }
+  };
   if (!s) return null;
   const p = s.profile;
   const t = baseTargets(s);
@@ -98,8 +109,8 @@ export function Settings() {
       </Group>
 
       <Group title="Your data">
-        <Row first icon="download" label="Back up (without photos)" onClick={async () => shareOrDownload(await exportBackup(false), `morsel-backup-${todayIso()}.json`)} />
-        <Row icon="download" label="Back up with photos" onClick={async () => shareOrDownload(await exportBackup(true), `morsel-backup-photos-${todayIso()}.json`)} />
+        <Row first icon="download" label="Back up (without photos)" onClick={() => prepare(false)} />
+        <Row icon="download" label="Back up with photos" onClick={() => prepare(true)} />
         <Row icon="upload" label="Restore from backup" onClick={() => fileRef.current?.click()} />
         <Row icon="refresh" label="Redo setup questions" onClick={() => patchSettings({ onboarded: false })} />
         <Row
@@ -112,6 +123,29 @@ export function Settings() {
           }}
         />
       </Group>
+      {backup && (
+        <Sheet onClose={() => setBackup(null)} label="Backup">
+          {close => (
+            <div className="stack" style={{ textAlign: 'center' }}>
+              <h2 className="serif" style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>{backup === 'busy' ? 'Packing your data…' : 'Backup ready'}</h2>
+              <p className="muted small" style={{ margin: 0 }}>
+                {backup === 'busy' ? 'This takes a moment with photos.' : `${(backup.blob.size / 1024 / 1024).toFixed(1)} MB. Save it to Files or send it to yourself. API keys are not included.`}
+              </p>
+              <button
+                className="btn block accent"
+                disabled={backup === 'busy'}
+                onClick={async () => {
+                  if (backup === 'busy') return;
+                  await shareOrDownload(backup.blob, backup.name);
+                  close();
+                }}
+              >
+                {backup === 'busy' ? <span className="spinner" /> : <Icon name="download" size={20} />} Save or share
+              </button>
+            </div>
+          )}
+        </Sheet>
+      )}
       <input
         ref={fileRef}
         type="file"

@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LookupFood } from './lib/lookup/off';
-import { todayIso } from './lib/units';
+import { rollDate, todayIso } from './lib/units';
 
 export type CameraMode = 'food' | 'barcode' | 'label';
 
@@ -51,6 +51,26 @@ export function NavProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<Overlay[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
   const timer = useRef<number>();
+  const lastToday = useRef(todayIso());
+
+  // iOS keeps home-screen apps alive for days: follow the calendar past midnight
+  useEffect(() => {
+    const check = () => {
+      const now = todayIso();
+      const prev = lastToday.current;
+      if (now === prev) return;
+      setDate(d => rollDate(d, prev, now));
+      lastToday.current = now;
+    };
+    const iv = window.setInterval(check, 60_000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
 
   const showToast = useCallback((text: string, action?: Toast['action']) => {
     const id = Date.now();

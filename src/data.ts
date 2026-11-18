@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { analyze, fix, type FoodResult } from './lib/ai';
 import { db, type SavedFood, type Settings } from './lib/db';
-import { dayHealthScore, dayTargets, rolloverFrom, sumEntries } from './lib/day';
+import { dayHealthScore, dayTargets, loggedDaysFrom, rolloverFrom, sumEntries } from './lib/day';
 import { prepareImage } from './lib/image';
 import type { LookupFood } from './lib/lookup/off';
 import { computePlan } from './lib/plan';
@@ -83,10 +83,7 @@ export function usePhoto(photoId: number | undefined, which: 'thumb' | 'full' = 
 }
 
 export function useLoggedDays(): Set<string> {
-  const dates = useLiveQuery(async () => {
-    const keys = await db.entries.orderBy('date').uniqueKeys();
-    return keys as string[];
-  }, []);
+  const dates = useLiveQuery(async () => [...loggedDaysFrom(await db.entries.toArray())], []);
   return useMemo(() => new Set(dates ?? []), [dates]);
 }
 
@@ -171,7 +168,7 @@ export async function applyFix(id: number, note: string) {
     await db.entries.update(id, applyResult(r));
   } catch (err) {
     // keep the previous numbers; surface the error on the entry
-    await db.entries.update(id, { status: 'ready', error: err instanceof Error ? err.message : String(err) });
+    await db.entries.update(id, { status: e.status === 'error' ? 'error' : 'ready', error: err instanceof Error ? err.message : String(err) });
     throw err;
   } finally {
     inFlight.delete(id);

@@ -53,6 +53,7 @@ function SearchTab() {
     if (term.length < 2) {
       setResults(null);
       setErr(null);
+      setLoading(false);
       return;
     }
     const ctrl = new AbortController();
@@ -190,6 +191,7 @@ function ManualTab({ close }: { close: () => void }) {
   const [amount, setAmount] = useState('1 serving');
   const [n, setN] = useState<Record<keyof Nutrients, string>>({ kcal: '', protein: '', carbs: '', fat: '', fiber: '', sugar: '', sodium: '' });
   const [save, setSave] = useState(true);
+  const [busy, setBusy] = useState(false);
   const rows: [keyof Nutrients, string, string][] = [
     ['kcal', 'Calories', 'cal'],
     ['protein', 'Protein', 'g'],
@@ -207,6 +209,8 @@ function ManualTab({ close }: { close: () => void }) {
       className="stack"
       onSubmit={async e => {
         e.preventDefault();
+        if (busy) return;
+        setBusy(true);
         const food: LookupFood = { key: 'manual', name: name.trim(), amount: amount.trim() || '1 serving', per, healthScore: 5 };
         await logLookup(nav.date, food, 1, 'manual');
         if (save) await db.saved.add({ name: food.name, amount: food.amount, per, ingredients: [{ name: food.name, amount: food.amount, ...per }], healthScore: 5, createdAt: Date.now(), uses: 1 });
@@ -237,7 +241,7 @@ function ManualTab({ close }: { close: () => void }) {
         Save for next time
         <input type="checkbox" checked={save} onChange={e => setSave(e.target.checked)} style={{ width: 22, height: 22, accentColor: 'var(--accent)' }} />
       </label>
-      <button className="btn block accent" disabled={!name.trim() || !(per.kcal > 0)}>
+      <button className="btn block accent" disabled={!name.trim() || !(per.kcal > 0) || busy}>
         Log it
       </button>
     </form>

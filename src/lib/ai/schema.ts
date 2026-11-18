@@ -96,7 +96,10 @@ export function parseFoodResult(x: unknown): FoodResult {
       amount: typeof it.amount === 'string' ? it.amount : '',
       kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0,
     };
-    for (const k of NUM_KEYS) ing[k] = num(it[k], `${it.name} ${k}`);
+    for (const k of NUM_KEYS) {
+      const optional = k === 'fiber' || k === 'sugar' || k === 'sodium';
+      ing[k] = optional && (it[k] === undefined || it[k] === null) ? 0 : num(it[k], `${it.name} ${k}`);
+    }
     return ing;
   });
   const per: Nutrients = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0, sodium: 0 };

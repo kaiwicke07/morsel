@@ -1,10 +1,14 @@
+import { useRef } from 'react';
 import { useNav, type Overlay } from '../nav';
 import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/primitives';
 
 export function AddSheet() {
   const nav = useNav();
+  const going = useRef(false);
   const go = (close: () => void, o: Overlay) => {
+    if (going.current) return;
+    going.current = true;
     close();
     setTimeout(() => nav.push(o), 230);
   };

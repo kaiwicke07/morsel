@@ -9,6 +9,7 @@ export function Describe() {
   const nav = useNav();
   const [text, setText] = useState('');
   const [keyOk, setKeyOk] = useState(true);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     void hasAiKey().then(setKeyOk);
   }, []);
@@ -20,7 +21,8 @@ export function Describe() {
           className="page stack"
           onSubmit={async e => {
             e.preventDefault();
-            if (!text.trim()) return;
+            if (!text.trim() || busy) return;
+            setBusy(true);
             await logText(nav.date, text.trim());
             close();
             nav.showToast('Estimating…');
@@ -41,7 +43,7 @@ export function Describe() {
               This needs an AI key. Tap to add one.
             </button>
           )}
-          <button className="btn block accent" disabled={!text.trim() || !keyOk}>
+          <button className="btn block accent" disabled={!text.trim() || !keyOk || busy}>
             <Icon name="spark" size={20} /> Estimate
           </button>
         </form>

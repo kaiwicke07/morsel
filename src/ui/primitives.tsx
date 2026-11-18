@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { stepServings } from '../lib/day';
 import { Icon } from './Icon';
 
 /** Plays the exit animation before calling onClose. */
@@ -69,17 +70,17 @@ export function Meter({ value, max, color, height = 8 }: { value: number; max: n
   );
 }
 
-export function Stepper({ value, onChange, step = 0.5, min = 0.25 }: { value: number; onChange: (v: number) => void; step?: number; min?: number }) {
+export function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0$/, ''));
   return (
     <div className="row" style={{ gap: 4, background: 'var(--card-2)', borderRadius: 999, padding: 4 }}>
-      <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="Fewer servings" onClick={() => onChange(Math.max(min, +(value - step).toFixed(2)))}>
+      <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="Fewer servings" onClick={() => onChange(stepServings(value, -1))}>
         <Icon name="minus" size={18} />
       </button>
       <span className="num" style={{ minWidth: 40, textAlign: 'center', fontSize: 18, fontWeight: 600 }}>
         {fmt(value)}
       </span>
-      <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="More servings" onClick={() => onChange(+(value + step).toFixed(2))}>
+      <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label="More servings" onClick={() => onChange(stepServings(value, 1))}>
         <Icon name="plus" size={18} />
       </button>
     </div>

@@ -391,9 +391,15 @@ function FoodRow({ e }: { e: FoodEntry }) {
         </div>
       </button>
       {e.status === 'error' && (
-        <button className="btn sm ghost" style={{ alignSelf: 'center' }} onClick={() => runAnalysis(e.id!)}>
-          <Icon name="refresh" size={16} /> Retry
-        </button>
+        /AI key/.test(e.error || '') ? (
+          <button className="btn sm accent" style={{ alignSelf: 'center' }} onClick={() => nav.push({ kind: 'ai' })}>
+            <Icon name="key" size={16} /> Add key
+          </button>
+        ) : (
+          <button className="btn sm ghost" style={{ alignSelf: 'center' }} onClick={() => runAnalysis(e.id!)}>
+            <Icon name="refresh" size={16} /> Retry
+          </button>
+        )
       )}
     </div>
   );

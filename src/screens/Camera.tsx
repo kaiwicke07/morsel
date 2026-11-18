@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { logPhoto, useSettings } from '../data';
+import { hasAiKey } from '../lib/ai';
 import { patchSettings } from '../lib/db';
 import { lookupBarcode } from '../lib/lookup/off';
 import { useNav, type CameraMode } from '../nav';
@@ -51,10 +52,24 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
   const captureRef = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
 
+  const closingRef = useRef(false);
   const close = () => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     setClosing(true);
     setTimeout(nav.pop, 200);
   };
+  /** leave the camera for another overlay, at most once */
+  const leaveTo = (o: Parameters<typeof nav.replace>[0]) => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    setTimeout(() => nav.replace(o), 180);
+  };
+  const [keyOk, setKeyOk] = useState(true);
+  useEffect(() => {
+    void hasAiKey().then(setKeyOk);
+  }, []);
 
   // start the camera
   useEffect(() => {
@@ -127,9 +142,9 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
     setScan({ state: 'looking', code });
     try {
       const food = await lookupBarcode(code);
+      if (closingRef.current) return; // user left while we were looking it up
       if (!food) return setScan({ state: 'notfound', code });
-      setClosing(true);
-      setTimeout(() => nav.replace({ kind: 'lookup', food, source: 'barcode' }), 180);
+      leaveTo({ kind: 'lookup', food, source: 'barcode' });
     } catch (e) {
       setScan({ state: 'error', code, msg: e instanceof Error ? e.message : 'Lookup failed' });
     }
@@ -229,7 +244,8 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
               <span style={{ opacity: 0.75, fontSize: 14 }}>Try the nutrition label instead, or search by name.</span>
               <div className="row" style={{ gap: 8 }}>
                 <button className="btn sm accent" onClick={() => { setScan({ state: 'idle' }); setMode('label'); }}>Scan label</button>
-                <button className="btn sm ghost" onClick={() => { setClosing(true); setTimeout(() => nav.replace({ kind: 'search', tab: 'all' }), 180); }}>Search</button>
+                <button className="btn sm ghost" onClick={() => leaveTo({ kind: 'search', tab: 'all' })}>Search</button>
+                <button className="btn sm ghost" onClick={() => leaveTo({ kind: 'search', tab: 'manual' })}>Add by hand</button>
                 <button className="btn sm ghost" onClick={() => setScan({ state: 'idle' })}>Retry</button>
               </div>
             </div>
@@ -281,8 +297,8 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
           <button
             onClick={() => fileRef.current?.click()}
-            disabled={mode === 'barcode'}
-            style={{ justifySelf: 'start', display: 'grid', justifyItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, opacity: mode === 'barcode' ? 0.3 : 1 }}
+            disabled={mode === 'barcode' || !keyOk}
+            style={{ justifySelf: 'start', display: 'grid', justifyItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, opacity: mode === 'barcode' || !keyOk ? 0.3 : 1 }}
           >
             <span style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(255,255,255,.14)', display: 'grid', placeItems: 'center' }}>
               <Icon name="image" />
@@ -292,8 +308,8 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
           <button
             aria-label="Take photo"
             onClick={shoot}
-            disabled={mode === 'barcode'}
-            style={{ width: 78, height: 78, borderRadius: 999, border: '4px solid #fff', display: 'grid', placeItems: 'center', opacity: mode === 'barcode' ? 0.3 : 1, transition: 'transform 120ms var(--ease-out)' }}
+            disabled={mode === 'barcode' || !keyOk}
+            style={{ width: 78, height: 78, borderRadius: 999, border: '4px solid #fff', display: 'grid', placeItems: 'center', opacity: mode === 'barcode' || !keyOk ? 0.3 : 1, transition: 'transform 120ms var(--ease-out)' }}
             onPointerDown={e => (e.currentTarget.style.transform = 'scale(.92)')}
             onPointerUp={e => (e.currentTarget.style.transform = '')}
             onPointerLeave={e => (e.currentTarget.style.transform = '')}
@@ -307,7 +323,18 @@ export function Camera({ mode: initial }: { mode: CameraMode }) {
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void submit(f); e.target.value = ''; }} />
       <input ref={captureRef} type="file" accept="image/*" capture="environment" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void submit(f); e.target.value = ''; }} />
 
-      {showTips && (
+      {!keyOk && mode !== 'barcode' && (
+        <div style={{ position: 'absolute', left: 16, right: 16, bottom: 'calc(var(--safe-bottom) + 160px)', background: 'rgba(12,9,7,.9)', borderRadius: 16, padding: 16, display: 'grid', gap: 10 }}>
+          <b>Photo scanning needs an AI key</b>
+          <span style={{ opacity: 0.75, fontSize: 14 }}>Add a Claude or free Gemini key once and every scan after that just works. Barcodes work without one.</span>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn sm accent" onClick={() => leaveTo({ kind: 'ai' })}>Add key</button>
+            <button className="btn sm ghost" onClick={() => setMode('barcode')}>Scan barcode</button>
+          </div>
+        </div>
+      )}
+
+      {showTips && keyOk && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(12,9,7,.88)', display: 'grid', alignContent: 'end', padding: '24px 20px calc(var(--safe-bottom) + 24px)' }} className="rise">
           <h2 className="serif" style={{ fontSize: 30, margin: '0 0 18px', fontWeight: 600 }}>For the best estimate</h2>
           {[

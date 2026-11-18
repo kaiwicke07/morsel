@@ -10,6 +10,25 @@ export function scaleNutrients(n: Nutrients, k: number): Nutrients {
   return out;
 }
 
+/** 0.25 is the floor; above it the stepper moves on a half-serving grid. */
+export function stepServings(v: number, dir: 1 | -1): number {
+  if (dir < 0) return v <= 0.5 ? 0.25 : Math.ceil(v * 2 - 1) / 2;
+  return v < 0.5 ? 0.5 : Math.floor(v * 2 + 1) / 2;
+}
+
+/** Hand-entered numbers always make the entry count, even if the scan had failed. */
+export function manualNutritionPatch(e: FoodEntry, vals: Nutrients): Partial<FoodEntry> {
+  const k = e.per.kcal ? vals.kcal / e.per.kcal : 1;
+  const ingredients = e.ingredients.length <= 1
+    ? [{ name: e.ingredients[0]?.name ?? e.name, amount: e.ingredients[0]?.amount ?? '1 serving', ...vals }]
+    : e.ingredients.map(i => ({ ...i, ...scaleNutrients(i, k) }));
+  return { per: vals, ingredients, status: 'ready', error: undefined };
+}
+
+export function loggedDaysFrom(entries: FoodEntry[]): Set<string> {
+  return new Set(entries.filter(e => e.status === 'ready').map(e => e.date));
+}
+
 export const entryTotals = (e: FoodEntry): Nutrients => scaleNutrients(e.per, e.servings);
 
 export function sumEntries(entries: FoodEntry[]): Nutrients {
