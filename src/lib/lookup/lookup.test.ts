@@ -72,6 +72,11 @@ describe('normalizeUsda', () => {
     expect(r.per.protein).toBe(17);
     expect(r.brand).toBe('Fage');
   });
+  it('lists generic foods before branded ones, keeping relevance order within each', () => {
+    const f = (fdcId: number, dataType: string) => ({ fdcId, description: `F${fdcId}`, dataType, servingSize: 30, servingSizeUnit: 'g', foodNutrients: [{ nutrientNumber: '208', value: 100 }] });
+    const out = normalizeUsda({ foods: [f(1, 'Branded'), f(2, 'SR Legacy'), f(3, 'Branded'), f(4, 'Survey (FNDDS)')] });
+    expect(out.map(x => x.key)).toEqual(['usda:2', 'usda:4', 'usda:1', 'usda:3']);
+  });
   it('skips foods without energy', () => {
     expect(normalizeUsda({ foods: [{ fdcId: 3, description: 'WATER', foodNutrients: [] }] })).toEqual([]);
     expect(normalizeUsda({})).toEqual([]);

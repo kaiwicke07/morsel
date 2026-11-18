@@ -10,7 +10,7 @@ function titleCase(s: string): string {
 
 export function normalizeUsda(json: any): LookupFood[] {
   const foods: any[] = Array.isArray(json?.foods) ? json.foods : [];
-  const out: LookupFood[] = [];
+  const out: (LookupFood & { branded: boolean })[] = [];
   for (const f of foods) {
     const list: any[] = f.foodNutrients || [];
     const val = (k: keyof typeof NUMBERS): number | undefined => {
@@ -41,9 +41,11 @@ export function normalizeUsda(json: any): LookupFood[] {
         sodium: Math.round((val('sodium') ?? 0) * k),
       },
       healthScore: 5,
+      branded: f.dataType === 'Branded',
     });
   }
-  return out;
+  // generic foods first; Array.prototype.sort is stable, so relevance order is kept within each group
+  return out.sort((a, b) => Number(a.branded) - Number(b.branded)).map(({ branded: _b, ...food }) => food);
 }
 
 export async function searchUsda(query: string, apiKey?: string, signal?: AbortSignal): Promise<LookupFood[]> {

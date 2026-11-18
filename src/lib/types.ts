@@ -54,6 +54,8 @@ export interface FoodEntry {
   per: Nutrients;
   ingredients: Ingredient[];
   healthScore: number; // 1-10
+  healthNote?: string;
+  confidence?: 'low' | 'medium' | 'high';
   photoId?: number;
   note?: string;
 }

@@ -1,7 +1,5 @@
 import { getSettings } from '../db';
 import { blobToBase64 } from '../image';
-import { claudeProvider } from './claude';
-import { geminiProvider } from './gemini';
 import { EXERCISE_SYSTEM, FOOD_SYSTEM, LABEL_SYSTEM, exercisePrompt, fixPrompt, photoPrompt, textPrompt } from './prompts';
 import type { Provider } from './provider';
 import { EXERCISE_SCHEMA, FOOD_SCHEMA, parseExerciseResult, parseFoodResult, type ExerciseResult, type FoodResult } from './schema';
@@ -17,9 +15,12 @@ async function provider(): Promise<Provider> {
   const ai = s?.ai;
   if (ai?.provider === 'gemini') {
     if (!ai.geminiKey) throw new NoKeyError();
+    const { geminiProvider } = await import('./gemini');
     return geminiProvider(ai.geminiKey.trim(), ai.geminiModel || 'gemini-flash-latest');
   }
   if (!ai?.claudeKey) throw new NoKeyError();
+  // the SDK is large; load it only when a scan actually happens
+  const { claudeProvider } = await import('./claude');
   return claudeProvider(ai.claudeKey.trim(), ai.claudeModel || 'claude-opus-5-5');
 }
 
