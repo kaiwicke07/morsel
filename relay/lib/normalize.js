@@ -59,10 +59,15 @@ export function validRange(start, end) {
 
 const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+/** The stored code must already be canonical (uppercase A-Z/0-9, dashes allowed) and 8+ characters; otherwise fail closed. */
+const CANONICAL = /^[A-Z0-9-]+$/;
+
 export function codeMatches(given, expected) {
-  given = norm(given);
-  expected = norm(expected);
-  if (!given || !expected) return false;
+  if (!expected || !CANONICAL.test(expected)) return false;
+  expected = expected.replace(/-/g, '');
+  if (expected.length < 8) return false;
+  given = norm(given); // only the typed code is forgiven for case, spaces and dashes
+  if (!given) return false;
   const h = s => createHash('sha256').update(String(s)).digest();
   return timingSafeEqual(h(given), h(expected));
 }

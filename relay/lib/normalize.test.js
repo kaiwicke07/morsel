@@ -38,10 +38,16 @@ describe('relay normalize', () => {
     expect(validRange('nope', '2026-11-18')).toBe(false);
   });
 
+  it('refuses to run with a stored code that is short or not canonical', () => {
+    expect(codeMatches('abc', 'abc')).toBe(false); // too short
+    expect(codeMatches('wmq96kgj', 'wmq9-6kgj')).toBe(false); // stored code must already be canonical
+    expect(codeMatches('wmq9 6kgj', 'WMQ9-6KGJ')).toBe(true); // only the typed code is normalized
+  });
+
   it('compares the sync code safely', () => {
-    expect(codeMatches('abc123', 'abc123')).toBe(true);
-    expect(codeMatches('abc124', 'abc123')).toBe(false);
-    expect(codeMatches('', 'abc123')).toBe(false);
-    expect(codeMatches('abc123', '')).toBe(false);
+    expect(codeMatches('WMQ9-6KGJ', 'WMQ9-6KGJ')).toBe(true);
+    expect(codeMatches('WMQ9-6KGK', 'WMQ9-6KGJ')).toBe(false);
+    expect(codeMatches('', 'WMQ9-6KGJ')).toBe(false);
+    expect(codeMatches('WMQ9-6KGJ', '')).toBe(false);
   });
 });
