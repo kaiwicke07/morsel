@@ -60,3 +60,6 @@ export function parseRelay(body: unknown): { days: GarminDay[]; activities: Garm
   }
   return { days, activities };
 }
+
+/** Sync codes are typed on a phone: ignore case, spaces and dashes. */
+export const normalizeCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');

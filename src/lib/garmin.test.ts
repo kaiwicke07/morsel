@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { burnedFor, garminBonus, parseRelay } from './garmin';
+import { burnedFor, garminBonus, normalizeCode, parseRelay } from './garmin';
 import { computePlan } from './plan';
 import type { Profile } from './types';
 
@@ -44,5 +44,12 @@ describe('relay response check', () => {
   it('rejects a response that is not the relay format', () => {
     expect(() => parseRelay('<html>')).toThrow();
     expect(() => parseRelay({ days: 'x' })).toThrow();
+  });
+});
+
+describe('sync code entry', () => {
+  it('ignores case, spaces and dashes when typed on a phone', () => {
+    expect(normalizeCode(' k7m4-q9x2 ')).toBe('K7M4Q9X2');
+    expect(normalizeCode('k7m4q9x2')).toBe(normalizeCode('K7M4 Q9X2'));
   });
 });

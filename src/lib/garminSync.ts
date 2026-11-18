@@ -1,5 +1,5 @@
 import { db } from './db';
-import { parseRelay, type GarminActivity, type GarminDay } from './garmin';
+import { normalizeCode, parseRelay, type GarminActivity, type GarminDay } from './garmin';
 import { addDays, todayIso } from './units';
 
 export const DEFAULT_RELAY = 'https://morsel-garmin.vercel.app';
@@ -20,7 +20,7 @@ export async function syncGarmin(force = false): Promise<void> {
     const start = addDays(end, -13);
     let res: Response;
     try {
-      res = await fetch(`${g.relayUrl || DEFAULT_RELAY}/api/garmin?start=${start}&end=${end}`, { headers: { 'x-morsel-code': g.code } });
+      res = await fetch(`${g.relayUrl || DEFAULT_RELAY}/api/garmin?start=${start}&end=${end}`, { headers: { 'x-morsel-code': normalizeCode(g.code) } });
     } catch {
       await setStatus({ lastError: "Can't reach the Garmin relay. Check your connection." });
       throw new GarminError("Can't reach the Garmin relay.");

@@ -57,7 +57,11 @@ export function validRange(start, end) {
   return days >= 0 && days <= 31;
 }
 
+const norm = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 export function codeMatches(given, expected) {
+  given = norm(given);
+  expected = norm(expected);
   if (!given || !expected) return false;
   const h = s => createHash('sha256').update(String(s)).digest();
   return timingSafeEqual(h(given), h(expected));

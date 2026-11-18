@@ -57,7 +57,7 @@ function Inner({ s, onClose, toast }: { s: Settings; onClose: () => void; toast:
 
           <div className="field">
             <label htmlFor="g-code">Sync code</label>
-            <input id="g-code" className="input num" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={code} onChange={e => setCode(e.target.value.trim())} placeholder="12 characters" />
+            <input id="g-code" className="input num" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="XXXX-XXXX" style={{ letterSpacing: '0.12em', fontSize: 20 }} />
           </div>
           {err && <p className="small" style={{ margin: 0, color: 'var(--bad)' }}>{err}</p>}
           <button className="btn block accent" disabled={!code || busy} onClick={connect}>

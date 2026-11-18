@@ -6,6 +6,9 @@ import { useNav } from '../nav';
 import { Icon } from '../ui/Icon';
 import { Screen, SegTabs } from '../ui/primitives';
 
+/** Pasted keys often carry spaces, line breaks, quotes or invisible characters. */
+const cleanKey = (v: string) => v.replace(/[\s"'`\u200B-\u200D\u2060\uFEFF]/g, '');
+
 const CLAUDE_MODELS = [
   { id: 'claude-opus-5-5', label: 'Opus 5.5', note: 'Most accurate · about 1¢ a photo' },
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', note: 'Nearly as good · about half the cost' },
@@ -56,7 +59,7 @@ function Inner({ s, onClose }: { s: Settings; onClose: () => void }) {
                 autoComplete="off"
                 placeholder={ai.provider === 'claude' ? 'sk-ant-…' : 'AIza…'}
                 value={key}
-                onChange={e => setAi(ai.provider === 'claude' ? { ...ai, claudeKey: e.target.value.trim() } : { ...ai, geminiKey: e.target.value.trim() })}
+                onChange={e => { const v = cleanKey(e.target.value); setAi(ai.provider === 'claude' ? { ...ai, claudeKey: v } : { ...ai, geminiKey: v }); }}
                 style={{ paddingRight: 64 }}
               />
               <button type="button" className="small" style={{ position: 'absolute', right: 12, top: 15, fontWeight: 600, color: 'var(--accent)' }} onClick={() => setShow(!show)}>
