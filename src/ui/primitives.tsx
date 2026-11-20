@@ -13,8 +13,89 @@ function useClosing(onClose: () => void, ms = 210) {
   return { closing, close };
 }
 
+/**
+ * Native-style dismiss gesture: drag a sheet down, or swipe a screen in from the left edge.
+ * Follows the finger, then either finishes the close (from where the finger left it) or springs back.
+ */
+function useDragDismiss(ref: React.RefObject<HTMLElement>, axis: 'y' | 'x', onDismiss: () => void, scrim?: React.RefObject<HTMLElement>) {
+  const dismiss = useRef(onDismiss);
+  dismiss.current = onDismiss;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    let state: 'idle' | 'drag' | 'off' = 'idle';
+    let d = 0;
+    const size = () => (axis === 'y' ? el.offsetHeight : el.offsetWidth);
+    const paint = (v: number) => {
+      el.style.transform = v ? (axis === 'y' ? `translateY(${v}px)` : `translateX(${v}px)`) : '';
+      if (scrim?.current) scrim.current.style.opacity = String(1 - Math.min(1, v / size()));
+    };
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (e.touches.length > 1) return (state = 'off');
+      // a screen only swipes back from its left edge, like iOS
+      if (axis === 'x' && t.clientX > 28) return (state = 'off');
+      start = { x: t.clientX, y: t.clientY, t: performance.now() };
+      state = 'idle';
+      d = 0;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!start || state === 'off') return;
+      const t = e.touches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const main = axis === 'y' ? dy : dx;
+      const cross = axis === 'y' ? dx : dy;
+      if (state === 'idle') {
+        if (Math.abs(main) < 6 && Math.abs(cross) < 6) return;
+        // only take over when the gesture is mostly along our axis, in the closing direction,
+        // and (for sheets) the content is already scrolled to the top
+        const atTop = axis === 'x' || el.scrollTop <= 0;
+        if (main > 0 && Math.abs(main) > Math.abs(cross) && atTop) {
+          state = 'drag';
+          el.style.transition = 'none';
+          start = { ...start, x: t.clientX, y: t.clientY }; // no jump when the drag starts
+        } else return (state = 'off');
+      }
+      e.preventDefault(); // we own this gesture now: don't scroll the content too
+      d = Math.max(0, axis === 'y' ? t.clientY - start.y : t.clientX - start.x);
+      paint(d);
+    };
+    const onEnd = () => {
+      if (state === 'drag' && start) {
+        const v = d / Math.max(1, performance.now() - start.t); // px per ms
+        if (d > size() * (axis === 'y' ? 0.25 : 0.35) || v > 0.5) {
+          navigator.vibrate?.(8);
+          dismiss.current(); // the closing animation runs on from the current position
+        } else {
+          el.style.transition = 'transform 320ms var(--ease-drawer)';
+          if (scrim?.current) scrim.current.style.transition = 'opacity 320ms var(--ease-drawer)';
+          paint(0);
+          if (scrim?.current) scrim.current.style.opacity = '';
+        }
+      }
+      start = null;
+      state = 'idle';
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [ref, axis, scrim]);
+}
+
 export function Sheet({ onClose, children, label }: { onClose: () => void; children: (close: () => void) => ReactNode; label: string }) {
   const { closing, close } = useClosing(onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
+  useDragDismiss(ref, 'y', close, scrim);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && close();
     window.addEventListener('keydown', k);
@@ -22,8 +103,8 @@ export function Sheet({ onClose, children, label }: { onClose: () => void; child
   });
   return (
     <>
-      <div className={`scrim ${closing ? 'closing' : ''}`} onClick={close} />
-      <div className={`sheet ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label={label}>
+      <div ref={scrim} className={`scrim ${closing ? 'closing' : ''}`} onClick={close} />
+      <div ref={ref} className={`sheet ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label={label}>
         <div className="grabber" />
         {children(close)}
       </div>
@@ -43,8 +124,10 @@ export function Screen({
   children: (close: () => void) => ReactNode;
 }) {
   const { closing, close } = useClosing(onClose);
+  const ref = useRef<HTMLDivElement>(null);
+  useDragDismiss(ref, 'x', close);
   return (
-    <div className={`screen ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+    <div ref={ref} className={`screen ${closing ? 'closing' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
       <div className="screen-head">
         <button className="icon-btn" onClick={close} aria-label="Back">
           <Icon name="back" />

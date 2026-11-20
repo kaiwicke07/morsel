@@ -57,7 +57,6 @@
 html {
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
-  overscroll-behavior: none;
   background: var(--paper);
 }
 
@@ -68,7 +67,6 @@ body {
   font-family: var(--sans);
   font-size: 16px;
   line-height: 1.4;
-  overscroll-behavior: none;
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
@@ -477,10 +475,11 @@ textarea.input {
   overscroll-behavior: contain;
   padding-top: calc(var(--safe-top) + 4px);
   padding-bottom: calc(var(--safe-bottom) + 24px);
-  animation: screen-in 320ms var(--ease-drawer);
+  box-shadow: -12px 0 32px -16px rgba(20, 14, 10, 0.35);
+  animation: screen-in 380ms var(--ease-drawer);
 }
 .screen.closing {
-  animation: screen-out 220ms var(--ease-out) forwards;
+  animation: screen-out 260ms var(--ease-out) forwards;
 }
 .screen-head {
   position: sticky;
@@ -519,16 +518,15 @@ textarea.input {
     transform: translateY(100%);
   }
 }
+/* pushed screens slide in from the right edge and back out, like iOS navigation */
 @keyframes screen-in {
   from {
-    transform: translateX(28%);
-    opacity: 0;
+    transform: translateX(100%);
   }
 }
 @keyframes screen-out {
   to {
-    transform: translateX(28%);
-    opacity: 0;
+    transform: translateX(100%);
   }
 }
 @keyframes rise {

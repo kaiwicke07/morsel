@@ -2,11 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { LookupFood } from './lib/lookup/off';
 import { rollDate, todayIso } from './lib/units';
 
-export type CameraMode = 'food' | 'barcode' | 'label';
-
 export type Overlay =
   | { kind: 'add' }
-  | { kind: 'camera'; mode: CameraMode }
+  | { kind: 'barcode' }
   | { kind: 'food'; id: number }
   | { kind: 'lookup'; food: LookupFood; source: 'barcode' | 'search' | 'manual' }
   | { kind: 'search'; tab?: 'all' | 'saved' | 'manual' }

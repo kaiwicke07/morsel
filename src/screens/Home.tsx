@@ -10,6 +10,7 @@ import type { ExerciseEntry, FoodEntry } from '../lib/types';
 import { addDays, parseIso, todayIso } from '../lib/units';
 import { useNav } from '../nav';
 import { Icon } from '../ui/Icon';
+import { usePhotoCapture } from '../ui/usePhotoCapture';
 import { Meter, Thumb } from '../ui/primitives';
 import { Logo } from './Onboarding';
 
@@ -323,7 +324,7 @@ function WaterCard({ day, s }: { day: DayData; s: Settings }) {
         </button>
       </div>
 
-      {s.garmin?.enabled && <GarminStrip day={day} />}
+      {s.garmin?.enabled && <GarminStrip day={day} status={s.garmin} />}
 
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
         <div className="row between">
@@ -340,8 +341,18 @@ function WaterCard({ day, s }: { day: DayData; s: Settings }) {
   );
 }
 
-function GarminStrip({ day }: { day: DayData }) {
+function ago(ms: number) {
+  const m = Math.round((Date.now() - ms) / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h} h ago` : new Date(ms).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function GarminStrip({ day, status }: { day: DayData; status: { lastSync?: number; lastError?: string } }) {
+  const nav = useNav();
   const g = day.garmin;
+  const broken = !!status.lastError;
   return (
     <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
       <div className="row between">
@@ -358,16 +369,38 @@ function GarminStrip({ day }: { day: DayData }) {
       <div className="small muted">
         {g?.totalKcal != null ? (
           <>Garmin: <b className="num" style={{ color: 'var(--ink)' }}>{fmt(g.totalKcal)}</b> burned{g.activeKcal != null ? ` · ${fmt(g.activeKcal)} active` : ''}</>
+        ) : broken ? (
+          'No Garmin numbers for this day.'
         ) : (
           'Waiting for your watch to sync. Open Garmin Connect.'
         )}
       </div>
+      <button
+        className="row small"
+        onClick={() => nav.push({ kind: 'garmin' })}
+        style={{
+          gap: 8,
+          marginTop: 10,
+          width: '100%',
+          padding: '8px 10px',
+          borderRadius: 10,
+          textAlign: 'left',
+          background: broken ? 'color-mix(in srgb, var(--bad) 12%, transparent)' : 'var(--card-2)',
+          color: broken ? 'var(--bad)' : 'var(--ink-2)',
+        }}
+      >
+        <span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, flex: 'none', background: broken ? 'var(--bad)' : status.lastSync ? 'var(--good)' : 'var(--ink-3)' }} />
+        <span style={{ flex: 1 }}>
+          {broken ? `Garmin isn't syncing: ${status.lastError}` : status.lastSync ? `Garmin synced ${ago(status.lastSync)}` : "Garmin hasn't synced yet"}
+        </span>
+        <Icon name="next" size={16} />
+      </button>
     </div>
   );
 }
 
 function DayList({ day }: { day: DayData }) {
-  const nav = useNav();
+  const photo = usePhotoCapture();
   type Item = { t: number; food?: FoodEntry; ex?: ExerciseEntry; g?: GarminActivity };
   const items: Item[] = [
     ...day.entries.map(f => ({ t: f.createdAt, food: f })),
@@ -379,7 +412,8 @@ function DayList({ day }: { day: DayData }) {
       <div className="card" style={{ textAlign: 'center', padding: '30px 20px', boxShadow: 'none', background: 'transparent', border: '1.5px dashed var(--line)' }}>
         <div className="serif" style={{ fontSize: 20, fontWeight: 600 }}>Nothing logged yet</div>
         <p className="muted small" style={{ margin: '6px 0 16px' }}>Snap your first meal and the numbers fill in by themselves.</p>
-        <button className="btn sm accent" onClick={() => nav.push({ kind: 'camera', mode: 'food' })}>
+        {photo.element}
+        <button className="btn sm accent" onClick={() => photo.open('photo')}>
           <Icon name="camera" size={18} /> Scan a meal
         </button>
       </div>
